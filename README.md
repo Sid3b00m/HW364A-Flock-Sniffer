@@ -213,7 +213,9 @@ immediately after the 24-byte header. The data we need always arrives before the
 **4. The Arduino build injects prototypes above your code.** Function prototypes are generated and
 placed at the top of the `.ino`, before your own type definitions. Any function taking a custom
 struct fails to compile with a baffling "does not name a type". Shared types therefore live in
-`flock_sigs.h`. Relatedly, the core does not export the SDK's `RxControl`, so the firmware defines
+`flock_sigs.h`. The generator also does not run the preprocessor first, so functions behind `#ifdef`
+are still prototyped in builds that exclude them, which is why the self-test sits in its own header
+rather than inline. Relatedly, the core does not export the SDK's `RxControl`, so the firmware defines
 its layout explicitly with a `static_assert` on the 12-byte size, turning a would-be silent
 garbage-data bug into a compile error.
 
@@ -222,6 +224,7 @@ garbage-data bug into a compile error.
 ```
 flock-mini.ino        firmware: sniffer, detection table, OLED UI
 flock_sigs.h          OUI list, SSID keywords, shared types
+flock_selftest.h      synthetic frame tests, hw364a-selftest build only
 platformio.ini        build config for the ESP8266
 install.ps1           Windows one-click installer
 flock_installer.py    GUI installer (tkinter)

@@ -135,6 +135,7 @@ function Emit([string]$path, [string]$body) {
 
 Emit 'flock_sigs.h'       (Grab (Doc 'FIRMWARE.md') 'cpp' 0)
 Emit 'flock-mini.ino'     (Grab (Doc 'FIRMWARE.md') 'cpp' 1)
+Emit 'flock_selftest.h'   (Grab (Doc 'FIRMWARE.md') 'cpp' 2)
 Emit 'platformio.ini'     (Grab (Doc 'FIRMWARE.md') 'ini' 0)
 Emit 'install.ps1'        (Grab (Doc 'INSTALLER.md') 'powershell' 0)
 Emit 'flock_installer.py' (Grab (Doc 'GUI_INSTALLER.md') 'python' 0)
