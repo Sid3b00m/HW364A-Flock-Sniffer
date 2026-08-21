@@ -102,8 +102,10 @@ Other routes:
 - **Windows one-click:** `install.ps1` handles PlatformIO, port detection, build and flash, and drops
   a Desktop shortcut. See [docs/INSTALL.md](docs/INSTALL.md).
 - **GUI:** `flock_installer.py` is a small tkinter window over the same steps.
-- **Browser:** [docs/WEBFLASH.md](docs/WEBFLASH.md) serves an [ESP Web Tools](https://esphome.github.io/esp-web-tools/)
-  page so anyone with Chrome can flash a prebuilt binary with no toolchain at all.
+- **Browser, no toolchain:** [**sid3b00m.github.io/HW364A-Flock-Sniffer/web/**](https://sid3b00m.github.io/HW364A-Flock-Sniffer/web/)
+  flashes the prebuilt binary straight from Chrome or Edge over Web Serial. Built with
+  [ESP Web Tools](https://esphome.github.io/esp-web-tools/); see [docs/WEBFLASH.md](docs/WEBFLASH.md)
+  to host your own copy.
 
 ## Using it
 
