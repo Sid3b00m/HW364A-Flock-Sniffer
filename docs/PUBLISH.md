@@ -157,8 +157,9 @@ else {
 }
 
 Step 'Staging the browser flasher binary'
-$bin = Get-ChildItem '.\.pio\build\*\firmware.bin' -ErrorAction SilentlyContinue |
-       Sort-Object LastWriteTime -Descending | Select-Object -First 1
+# Explicitly the default environment. A stale hw364a-selftest build must never
+# become the binary that visitors flash from the hosted page.
+$bin = Get-Item '.\.pio\build\hw364a\firmware.bin' -ErrorAction SilentlyContinue
 if ($bin) {
     Copy-Item $bin.FullName '.\web\firmware.bin' -Force
     Ok ("web/firmware.bin  {0:N0} KB" -f ($bin.Length / 1KB))

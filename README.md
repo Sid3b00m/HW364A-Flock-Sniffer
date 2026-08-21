@@ -139,9 +139,20 @@ Plus a heartbeat every 30 seconds:
 
 ## Proving it works
 
-You probably have no camera nearby, so test the machinery. Set `SELFTEST_OUI` in `flock-mini.ino` to
-the first three bytes of your phone's WiFi MAC, reflash, and toggle the phone's WiFi. Phones emit the
-same wildcard probe requests cameras do, so a `FLOCK DETECTED` reading `WPROBE` proves the entire
+Full detail in [docs/TESTING.md](docs/TESTING.md). Two levels:
+
+**Logic.** A second build environment runs a set of hand-built 802.11 frames through the real
+sniffer at boot and prints PASS/FAIL over serial, with no radio involved, so the result is the same
+every time:
+
+```powershell
+python -m platformio run -e hw364a-selftest -t upload
+python -m platformio device monitor -b 115200
+```
+
+**Radio.** That proves parsing, not reception. Set `SELFTEST_OUI` in `flock-mini.ino` to the first
+three bytes of your phone's WiFi MAC, reflash, and toggle the phone's WiFi. Phones emit the same
+wildcard probe requests cameras do, so a `FLOCK DETECTED` reading `WPROBE` proves the entire
 high-confidence path end to end. Comment it out afterwards.
 
 Cheaper smoke test: any ESP-based smart plug or bulb nearby will trip the low tier within a minute,
@@ -214,7 +225,7 @@ flock_sigs.h          OUI list, SSID keywords, shared types
 platformio.ini        build config for the ESP8266
 install.ps1           Windows one-click installer
 flock_installer.py    GUI installer (tkinter)
-docs/                 START-HERE, INSTALL, WEBFLASH, and the installer docs
+docs/                 START-HERE, INSTALL, TESTING, WEBFLASH, installer docs
 web/                  browser flasher (ESP Web Tools)
 FIRMWARE.md           the same firmware as one annotated document
 ```
