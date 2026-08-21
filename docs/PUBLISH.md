@@ -64,8 +64,15 @@ foreach ($tool in @('git', 'gh')) {
         throw "$tool is not installed or not on PATH."
     }
 }
-& gh auth status 2>&1 | Out-Null
-if ($LASTEXITCODE -ne 0) { throw 'Not signed in to GitHub. Run: gh auth login' }
+# gh writes to stderr in normal operation, which PowerShell turns into a
+# terminating error while ErrorActionPreference is Stop. Suppress and use the
+# exit code instead.
+$prevEap = $ErrorActionPreference
+$ErrorActionPreference = 'Continue'
+& gh auth status *> $null
+$authed = ($LASTEXITCODE -eq 0)
+$ErrorActionPreference = $prevEap
+if (-not $authed) { throw 'Not signed in to GitHub. Run: gh auth login' }
 
 $owner = (& gh api user --jq .login 2>$null | Out-String).Trim()
 if (-not $owner) { throw 'Could not read your GitHub username from gh.' }
@@ -206,9 +213,11 @@ Step "Creating github.com/$owner/$RepoName"
 
 $visibility = if ($Private) { '--private' } else { '--public' }
 
-$exists = $false
-& gh repo view "$owner/$RepoName" 2>&1 | Out-Null
-if ($LASTEXITCODE -eq 0) { $exists = $true }
+$prevEap = $ErrorActionPreference
+$ErrorActionPreference = 'Continue'
+& gh repo view "$owner/$RepoName" *> $null
+$exists = ($LASTEXITCODE -eq 0)
+$ErrorActionPreference = $prevEap
 
 if ($exists) {
     Note 'Repository already exists, pushing to it.'
