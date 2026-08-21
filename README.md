@@ -60,7 +60,9 @@ manufacturer ID `0x09C8`, "Penguin" devices) is impossible on this chip. If you 
 ESP32 and run [flock-you](https://github.com/colonelpanichacks/flock-you) directly.
 
 **No GPS or logging to card.** Detections live in RAM and clear on reboot. The serial JSON stream is
-the permanent record. This is deliberate — ESP8266 flash writes stall the radio and drop frames.
+the permanent record. This is deliberate — ESP8266 flash writes stall the radio and drop frames. The
+table holds 64 devices; once full, a high-confidence hit recycles the stalest low-confidence entry
+rather than being dropped.
 
 **RSSI is not distance.** CLOSE/NEAR/FAR is a hint. Walls, poles, and antenna orientation swing it
 by tens of decibels.
@@ -185,7 +187,8 @@ is metadata only. `len == 128` is `sniffer_buf2`: a *management* frame with up t
 and body. Anything else is `sniffer_buf`: a *data* frame, 36 bytes, header only. The existing ESP8266
 port has these two cases swapped, so it only ever tries to parse information elements out of data
 frames — which means its highest-confidence wildcard-probe detector can never fire. This project
-branches the other way.
+branches the other way. Note also that `sniffer_buf2` ends with *two* 16-bit fields, `cnt` then
+`len`, so the real frame length is at offset 126 and not 124.
 
 **2. Do not filter locally-administered MACs.** The obvious hygiene step of skipping MACs with bit 1
 of the first octet set (they are usually randomised) throws away `82:6b:f2`, a confirmed camera

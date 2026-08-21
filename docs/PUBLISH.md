@@ -25,13 +25,17 @@ $s.Length
 powershell -ExecutionPolicy Bypass -File .\publish.ps1
 ```
 
-`$s.Length` should print roughly 4000.
+`$s.Length` should print several thousand. If it prints 0 the code block did not match.
 
 Options:
 
+- `.\publish.ps1 -Message "what changed"` - commit message for this run.
 - `.\publish.ps1 -Private` - make the repo private.
 - `.\publish.ps1 -SkipBuild` - do not recompile first.
 - `.\publish.ps1 -RepoName something-else` - different repository name.
+
+Safe to re-run. It regenerates the sources from the docs, rebuilds, refreshes
+`web/firmware.bin`, and pushes to the existing repository.
 
 ---
 
@@ -43,6 +47,7 @@ Options:
 param(
     [string]$RepoName = 'HW364A-Flock-Sniffer',
     [string]$Description = 'HW364A Flock Sniffer - passive Flock Safety camera detector for the ESP8266 + 0.96" OLED board',
+    [string]$Message = 'Update firmware and docs',
     [switch]$Private,
     [switch]$SkipBuild
 )
@@ -52,6 +57,25 @@ $ErrorActionPreference = 'Stop'
 function Step([string]$m) { Write-Host ''; Write-Host "==> $m" -ForegroundColor Cyan }
 function Ok([string]$m)   { Write-Host "    $m" -ForegroundColor Green }
 function Note([string]$m) { Write-Host "    $m" -ForegroundColor Gray }
+
+# git and gh both write to stderr during normal, successful operation, which
+# PowerShell turns into a terminating error while ErrorActionPreference is Stop.
+# Run them with that relaxed and judge them by exit code instead.
+function Native {
+    param(
+        [Parameter(Mandatory)][string]$Exe,
+        [string[]]$Arguments = @(),
+        [switch]$Quiet
+    )
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        if ($Quiet) { & $Exe @Arguments *> $null }
+        else        { & $Exe @Arguments 2>&1 | ForEach-Object { Write-Host $_ } }
+    }
+    finally { $ErrorActionPreference = $prev }
+    return $LASTEXITCODE
+}
 
 $root = if ($PSScriptRoot) { $PSScriptRoot } else { (Get-Location).Path }
 Set-Location $root
@@ -64,17 +88,14 @@ foreach ($tool in @('git', 'gh')) {
         throw "$tool is not installed or not on PATH."
     }
 }
-# gh writes to stderr in normal operation, which PowerShell turns into a
-# terminating error while ErrorActionPreference is Stop. Suppress and use the
-# exit code instead.
+if ((Native gh @('auth', 'status') -Quiet) -ne 0) {
+    throw 'Not signed in to GitHub. Run: gh auth login'
+}
+
 $prevEap = $ErrorActionPreference
 $ErrorActionPreference = 'Continue'
-& gh auth status *> $null
-$authed = ($LASTEXITCODE -eq 0)
-$ErrorActionPreference = $prevEap
-if (-not $authed) { throw 'Not signed in to GitHub. Run: gh auth login' }
-
 $owner = (& gh api user --jq .login 2>$null | Out-String).Trim()
+$ErrorActionPreference = $prevEap
 if (-not $owner) { throw 'Could not read your GitHub username from gh.' }
 Ok "git and gh ready, signed in as $owner"
 
@@ -85,7 +106,17 @@ Step 'Regenerating every file the docs define'
 $utf8 = New-Object System.Text.UTF8Encoding($false)
 $fence = [string][char]0x60 * 3
 
+# A doc sits at the root before the first run and under docs\ after it, so this
+# has to look in both or a second run silently stops regenerating anything.
+function Doc([string]$name) {
+    foreach ($p in @((Join-Path $root $name), (Join-Path $root "docs\$name"))) {
+        if (Test-Path $p) { return $p }
+    }
+    return $null
+}
+
 function Grab([string]$doc, [string]$lang, [int]$index = 0) {
+    if (-not $doc) { return $null }
     if (-not (Test-Path $doc)) { return $null }
     $text = Get-Content $doc -Raw
     $mm = [regex]::Matches($text, "(?ms)^$fence$lang\r?\n(.*?)^$fence")
@@ -102,14 +133,14 @@ function Emit([string]$path, [string]$body) {
     Ok $path
 }
 
-Emit 'flock_sigs.h'       (Grab '.\FIRMWARE.md' 'cpp' 0)
-Emit 'flock-mini.ino'     (Grab '.\FIRMWARE.md' 'cpp' 1)
-Emit 'platformio.ini'     (Grab '.\FIRMWARE.md' 'ini' 0)
-Emit 'install.ps1'        (Grab '.\INSTALLER.md' 'powershell' 0)
-Emit 'flock_installer.py' (Grab '.\GUI_INSTALLER.md' 'python' 0)
-Emit 'webflash.ps1'       (Grab '.\WEBFLASH.md' 'powershell' 0)
-Emit 'web\index.html'     (Grab '.\WEBFLASH.md' 'html' 0)
-Emit 'web\manifest.json'  (Grab '.\WEBFLASH.md' 'json' 0)
+Emit 'flock_sigs.h'       (Grab (Doc 'FIRMWARE.md') 'cpp' 0)
+Emit 'flock-mini.ino'     (Grab (Doc 'FIRMWARE.md') 'cpp' 1)
+Emit 'platformio.ini'     (Grab (Doc 'FIRMWARE.md') 'ini' 0)
+Emit 'install.ps1'        (Grab (Doc 'INSTALLER.md') 'powershell' 0)
+Emit 'flock_installer.py' (Grab (Doc 'GUI_INSTALLER.md') 'python' 0)
+Emit 'webflash.ps1'       (Grab (Doc 'WEBFLASH.md') 'powershell' 0)
+Emit 'web\index.html'     (Grab (Doc 'WEBFLASH.md') 'html' 0)
+Emit 'web\manifest.json'  (Grab (Doc 'WEBFLASH.md') 'json' 0)
 
 Note 'platformio.ini was reset, so this machine COM port is not committed.'
 
@@ -190,22 +221,21 @@ Ok 'LICENSE (MIT)'
 Step 'Preparing the commit'
 
 if (-not (Test-Path '.\.git')) {
-    & git init -b main | Out-Null
+    Native git @('init', '-b', 'main') -Quiet | Out-Null
     Ok 'git repository initialised'
 }
 
 # repo-local identity only, so the global config is left alone
-if (-not (& git config user.name))  { & git config user.name  $owner }
-if (-not (& git config user.email)) { & git config user.email "$owner@users.noreply.github.com" }
+if (-not (& git config user.name)) {
+    Native git @('config', 'user.name', $owner) -Quiet | Out-Null
+}
+if (-not (& git config user.email)) {
+    Native git @('config', 'user.email', "$owner@users.noreply.github.com") -Quiet | Out-Null
+}
 
-& git add -A
-& git commit -m "HW364A Flock Sniffer: passive Flock Safety detector for ESP8266 + OLED" 2>&1 | Out-Null
-if ($LASTEXITCODE -ne 0) {
-    Note 'Nothing new to commit, continuing.'
-}
-else {
-    Ok 'Committed'
-}
+Native git @('add', '-A') -Quiet | Out-Null
+if ((Native git @('commit', '-m', $Message) -Quiet) -eq 0) { Ok "Committed: $Message" }
+else { Note 'Nothing new to commit, continuing.' }
 
 # ---------------------------------------------------------------- 5. publish
 
@@ -213,27 +243,22 @@ Step "Creating github.com/$owner/$RepoName"
 
 $visibility = if ($Private) { '--private' } else { '--public' }
 
-$prevEap = $ErrorActionPreference
-$ErrorActionPreference = 'Continue'
-& gh repo view "$owner/$RepoName" *> $null
-$exists = ($LASTEXITCODE -eq 0)
-$ErrorActionPreference = $prevEap
-
-if ($exists) {
+if ((Native gh @('repo', 'view', "$owner/$RepoName") -Quiet) -eq 0) {
     Note 'Repository already exists, pushing to it.'
-    & git remote remove origin 2>&1 | Out-Null
-    & git remote add origin "https://github.com/$owner/$RepoName.git"
-    & git push -u origin main
-    if ($LASTEXITCODE -ne 0) { throw 'Push failed.' }
+    Native git @('remote', 'remove', 'origin') -Quiet | Out-Null
+    Native git @('remote', 'add', 'origin', "https://github.com/$owner/$RepoName.git") -Quiet | Out-Null
+    if ((Native git @('push', '-u', 'origin', 'main')) -ne 0) { throw 'Push failed.' }
 }
 else {
-    & gh repo create $RepoName $visibility --source=. --remote=origin --push --description $Description
-    if ($LASTEXITCODE -ne 0) { throw 'gh repo create failed.' }
+    $create = @('repo', 'create', $RepoName, $visibility,
+                '--source=.', '--remote=origin', '--push', '--description', $Description)
+    if ((Native gh $create) -ne 0) { throw 'gh repo create failed.' }
 }
 
 Write-Host ''
 Ok "https://github.com/$owner/$RepoName"
-Note 'To host the browser flasher: Settings > Pages > deploy from main /web,'
-Note 'then commit web/firmware.bin so visitors have something to flash.'
+Note 'Browser flasher: Settings > Pages > deploy from main, folder / (root).'
+Note 'Pages only serves from / or /docs, so the flasher page ends up at'
+Note "https://$($owner.ToLower()).github.io/$RepoName/web/"
 Write-Host ''
 ```

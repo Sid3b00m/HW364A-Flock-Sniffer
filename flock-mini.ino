@@ -53,6 +53,11 @@ extern "C" {
 
 static bool isHighConfidence(uint8_t m) { return m <= M_SSID_KEYWORD; }
 
+// Channel 14 breaks the 5 MHz spacing.
+static uint16_t chanFreq(uint8_t ch) {
+  return (ch == 14) ? 2484 : (uint16_t)(2412 + (ch - 1) * 5);
+}
+
 static const char* methodJson(uint8_t m) {
   switch (m) {
     case M_WILDCARD_PROBE: return "wifi_wildcard_probe";
@@ -210,7 +215,9 @@ static void sniffCb(uint8_t* buf, uint16_t len) {
   const uint8_t* frame = buf + sizeof(FMRxControl);
   int avail;
   if (len == 128) {
-    uint16_t real = (uint16_t)buf[124] | ((uint16_t)buf[125] << 8);
+    // sniffer_buf2 is rx_ctrl[12] + buf[112] + cnt[2] + len[2], so the real
+    // frame length is the last field at offset 126. Offset 124 is cnt.
+    uint16_t real = (uint16_t)buf[126] | ((uint16_t)buf[127] << 8);
     avail = (real >= 24 && real < 112) ? (int)real : 112;
   } else {
     avail = (int)len - (int)sizeof(FMRxControl);
@@ -288,14 +295,35 @@ static int findDet(const uint8_t* mac) {
   return -1;
 }
 
+// The low-confidence entry unheard from the longest, or -1 if every slot holds
+// a high-confidence detection.
+static int stalestLowConfidence() {
+  int worst = -1;
+  uint32_t worstAge = 0, now = millis();
+  for (uint8_t i = 0; i < detCount; i++) {
+    if (isHighConfidence(dets[i].method)) continue;
+    uint32_t age = now - dets[i].lastSeen;
+    if (worst < 0 || age > worstAge) { worst = i; worstAge = age; }
+  }
+  return worst;
+}
+
 static void handleHit(const Hit& h) {
   uint32_t now = millis();
   int idx = findDet(h.mac);
   bool worthAlert = false;
 
   if (idx < 0) {
-    if (detCount >= MAX_DETECTIONS) return;
-    idx = detCount++;
+    if (detCount < MAX_DETECTIONS) {
+      idx = detCount++;
+    } else {
+      // Table full. Three of the shipped prefixes belong to Espressif, so in a
+      // dense area it fills with low-confidence noise. Recycle the stalest of
+      // that rather than let it lock a real camera out of the table entirely.
+      if (!isHighConfidence(h.method)) return;
+      idx = stalestLowConfidence();
+      if (idx < 0) return;
+    }
     Det& d = dets[idx];
     memcpy(d.mac, h.mac, 6);
     d.method = h.method;
@@ -334,7 +362,7 @@ static void handleHit(const Hit& h) {
       methodJson(h.method), isHighConfidence(h.method) ? "high" : "low",
       h.mac[0], h.mac[1], h.mac[2], h.mac[3], h.mac[4], h.mac[5],
       h.mac[0], h.mac[1], h.mac[2],
-      h.rssi, (unsigned)h.ch, (unsigned)(2412 + (h.ch - 1) * 5), d.ssid, (unsigned)d.hits);
+      h.rssi, (unsigned)h.ch, (unsigned)chanFreq(h.ch), d.ssid, (unsigned)d.hits);
   }
 
   if (worthAlert && isHighConfidence(h.method)) {
@@ -470,7 +498,7 @@ static void drawList() {
   oled.drawHLine(2, 9, 124);
 
   uint32_t now = millis();
-  int y = 19;
+  int y = 17;   // 5 rows at 8px keeps the last one clear of the divider at 53
   for (uint8_t row = 0; row < 5; row++) {
     int i = detCount - 1 - (listPage * 5 + row);   // newest first
     if (i < 0) break;
@@ -487,7 +515,7 @@ static void drawList() {
     oled.drawStr(86, y, isHighConfidence(d.method) ? "HI" : "lo");
     if (now - d.lastSeen < ACTIVE_MS) oled.drawStr(104, y, "<");
 
-    y += 9;
+    y += 8;
   }
 
   oled.drawHLine(2, 53, 124);

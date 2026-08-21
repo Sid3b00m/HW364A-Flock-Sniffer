@@ -139,6 +139,7 @@ For the ESP8266 the PlatformIO output is already a complete flash image, so it g
   "version": "1.0.0",
   "home_assistant_domain": null,
   "new_install_prompt_erase": true,
+  "improv": false,
   "builds": [
     {
       "chipFamily": "ESP8266",
