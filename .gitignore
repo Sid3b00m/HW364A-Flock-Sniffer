@@ -1,0 +1,10 @@
+.pio/
+.vscode/
+.venv/
+__pycache__/
+build/
+dist/
+*.spec
+*.bak
+publish.ps1
+Install flock-mini.cmd

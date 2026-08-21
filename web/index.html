@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>flock-mini web flasher</title>
+<script type="module"
+        src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
+<style>
+  :root { color-scheme: dark; }
+  body {
+    margin: 0; min-height: 100vh; display: grid; place-items: center;
+    background: #0d1117; color: #c9d1d9;
+    font: 15px/1.6 -apple-system, "Segoe UI", system-ui, sans-serif;
+  }
+  main { width: min(560px, 90vw); padding: 40px 0; }
+  h1 { font-size: 28px; margin: 0 0 4px; color: #f0f6fc; letter-spacing: -0.02em; }
+  .sub { color: #8b949e; margin: 0 0 28px; }
+  .card {
+    background: #161b22; border: 1px solid #30363d; border-radius: 10px;
+    padding: 22px; margin-bottom: 18px;
+  }
+  ol { margin: 0; padding-left: 20px; }
+  li { margin-bottom: 8px; }
+  code { background: #21262d; padding: 1px 6px; border-radius: 4px; font-size: 13px; }
+  .cta { text-align: center; padding: 26px 0 6px; }
+  .warn { color: #d29922; font-size: 13px; }
+  a { color: #58a6ff; }
+  footer { color: #6e7681; font-size: 12px; text-align: center; margin-top: 22px; }
+  esp-web-install-button { --esp-tools-button-color: #f0f6fc; }
+</style>
+</head>
+<body>
+<main>
+  <h1>flock-mini</h1>
+  <p class="sub">Passive Flock Safety camera detector &middot; ESP8266 + 0.96&quot; OLED</p>
+
+  <div class="card">
+    <ol>
+      <li>Plug the board in with a <strong>data</strong> USB cable.</li>
+      <li>Click the button below, then choose the <code>USB-SERIAL CH340</code> port.</li>
+      <li>Wait for the progress bar. The board reboots into the detector by itself.</li>
+    </ol>
+    <div class="cta">
+      <esp-web-install-button manifest="manifest.json">
+        <button slot="activate">Flash flock-mini</button>
+        <span slot="unsupported" class="warn">
+          This browser cannot flash. Use Chrome or Edge on a desktop.
+        </span>
+        <span slot="not-allowed" class="warn">
+          Serial access needs HTTPS or localhost.
+        </span>
+      </esp-web-install-button>
+    </div>
+  </div>
+
+  <div class="card">
+    <strong>No port in the list?</strong>
+    <p style="margin:8px 0 0">
+      Install the <a href="https://sparks.gogo.co.nz/ch340.html">CH340 driver</a> and re-plug the
+      board. If it still fails, the cable is charge-only &mdash; swap it.
+    </p>
+  </div>
+
+  <footer>
+    Passive receiver. Transmits nothing. Based on
+    <a href="https://github.com/colonelpanichacks/flock-you">flock-you</a>.
+  </footer>
+</main>
+</body>
+</html>
